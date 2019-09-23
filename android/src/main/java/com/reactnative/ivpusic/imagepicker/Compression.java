@@ -13,6 +13,7 @@ import com.facebook.react.bridge.ReadableMap;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -26,11 +27,38 @@ import java.util.UUID;
 
 class Compression {
 
-    File resize(String originalImagePath, int maxWidth, int maxHeight, int quality) throws IOException {
-        Bitmap original = BitmapFactory.decodeFile(originalImagePath);
+    private static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        // Raw height and width of image
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
 
-        int width = original.getWidth();
-        int height = original.getHeight();
+        if (height > reqHeight || width > reqWidth) {
+
+          final int halfHeight = height / 2;
+          final int halfWidth = width / 2;
+
+          // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+          // height and width larger than the requested height and width.
+          while ((halfHeight / inSampleSize) >= reqHeight
+            && (halfWidth / inSampleSize) >= reqWidth) {
+            inSampleSize *= 2;
+          }
+        }
+
+        return inSampleSize;
+    }
+
+    File resize(String originalImagePath, int maxWidth, int maxHeight, int quality) throws IOException {
+
+        // First decode with inJustDecodeBounds=true to check dimensions
+        final BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        FileInputStream fis = new FileInputStream(originalImagePath);
+        BitmapFactory.decodeStream(fis, null, options);
+
+        int width = options.outWidth;
+        int height = options.outHeight;
 
         // Use original image exif orientation data to preserve image orientation for the resized bitmap
         ExifInterface originalExif = new ExifInterface(originalImagePath);
@@ -52,9 +80,16 @@ class Compression {
             finalHeight = (int) ((float) maxWidth / ratioBitmap);
         }
 
-        Bitmap resized = Bitmap.createScaledBitmap(original, finalWidth, finalHeight, true);
+        // Calculate inSampleSize
+        options.inSampleSize = calculateInSampleSize(options, finalWidth, finalHeight);
+
+        // Decode bitmap with inSampleSize set
+        options.inJustDecodeBounds = false;
+        fis = new FileInputStream(originalImagePath);
+        Bitmap resized = BitmapFactory.decodeStream(fis, null, options);
+
         resized = Bitmap.createBitmap(resized, 0, 0, finalWidth, finalHeight, rotationMatrix, true);
-        
+
         File imageDirectory = Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_PICTURES);
 
@@ -69,7 +104,6 @@ class Compression {
         resized.compress(Bitmap.CompressFormat.JPEG, quality, os);
 
         os.close();
-        original.recycle();
         resized.recycle();
 
         return resizeImageFile;
