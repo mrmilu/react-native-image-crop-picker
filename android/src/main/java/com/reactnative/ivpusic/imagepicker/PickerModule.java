@@ -2,6 +2,7 @@ package com.reactnative.ivpusic.imagepicker;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.Intent;
@@ -11,6 +12,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -518,7 +520,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
 
                             resultCollector.notifySuccess(video);
                         } catch (Exception e) {
-                            resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, e);
+                            resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, e.getMessage());
                         }
                     }
                 }, new Callback() {
@@ -655,12 +657,12 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
         uCrop.start(activity);
     }
 
-    private void imagePickerResult(Activity activity, final int requestCode, final int resultCode, final Intent data) {
+    private void imagePickerResult(final Activity activity, final int requestCode, final int resultCode, final Intent data) {
         if (resultCode == Activity.RESULT_CANCELED) {
             resultCollector.notifyProblem(E_PICKER_CANCELLED_KEY, E_PICKER_CANCELLED_MSG);
         } else if (resultCode == Activity.RESULT_OK) {
             if (multiple) {
-                ClipData clipData = data.getClipData();
+                final ClipData clipData = data.getClipData();
 
                 try {
                     // only one image selected
@@ -668,10 +670,44 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
                         resultCollector.setWaitCount(1);
                         getAsyncSelection(activity, data.getData(), false);
                     } else {
-                        resultCollector.setWaitCount(clipData.getItemCount());
-                        for (int i = 0; i < clipData.getItemCount(); i++) {
-                            getAsyncSelection(activity, clipData.getItemAt(i).getUri(), false);
-                        }
+						new AsyncTask<Void, Integer, Void>() {
+							private Activity act = activity;
+							private ClipData data = clipData;
+							private ProgressDialog pd;
+
+							protected void onPreExecute() {
+								resultCollector.setWaitCount(data.getItemCount());
+								pd = new ProgressDialog(act);
+								pd.setMessage("Attaching images...");
+								pd.setCancelable(false);
+								pd.show();
+							}
+							
+							protected void onProgressUpdate(Integer... progress) {
+								pd.setMessage("Attaching images... (" + (progress[0]) + " / " + progress[1] + ")" );
+							}
+							
+							protected Void doInBackground(Void... params) {
+								try {
+									int total = data.getItemCount();
+
+									for (int i = 0; i < total; i++) {
+										publishProgress(i + 1, total);
+										getAsyncSelection(act, data.getItemAt(i).getUri(), false);
+										System.gc();
+									}
+								} catch (Exception ex) {
+									resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
+								}
+								
+								return null;
+							}
+							
+							protected void onPostExecute(Void msg) {
+								pd.dismiss();
+							}
+							
+						}.execute();
                     }
                 } catch (Exception ex) {
                     resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
