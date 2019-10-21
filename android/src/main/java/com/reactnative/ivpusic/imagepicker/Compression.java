@@ -46,6 +46,13 @@ class Compression {
           }
         }
 
+        //use result that yields closer width match (even if it is smaller than requested)
+        int diffCurrent = Math.abs((width / inSampleSize)  - reqWidth);
+        int diffNext = Math.abs((width / (inSampleSize * 2)) - reqWidth);
+        if (diffCurrent > diffNext){
+            inSampleSize *= 2;
+        }
+        
         return inSampleSize;
     }
 
@@ -63,10 +70,6 @@ class Compression {
         // Use original image exif orientation data to preserve image orientation for the resized bitmap
         ExifInterface originalExif = new ExifInterface(originalImagePath);
         int originalOrientation = originalExif.getAttributeInt(ExifInterface.TAG_ORIENTATION, 1);
-
-        Matrix rotationMatrix = new Matrix();
-        int rotationAngleInDegrees = getRotationInDegreesForOrientationTag(originalOrientation);
-        rotationMatrix.postRotate(rotationAngleInDegrees);
 
         float ratioBitmap = (float) width / (float) height;
         float ratioMax = (float) maxWidth / (float) maxHeight;
@@ -88,7 +91,12 @@ class Compression {
         fis = new FileInputStream(originalImagePath);
         Bitmap resized = BitmapFactory.decodeStream(fis, null, options);
 
-        resized = Bitmap.createBitmap(resized, 0, 0, finalWidth, finalHeight, rotationMatrix, true);
+        Matrix rotationMatrix = new Matrix();
+        int rotationAngleInDegrees = getRotationInDegreesForOrientationTag(originalOrientation);
+        rotationMatrix.postRotate(rotationAngleInDegrees);
+        rotationMatrix.postScale((float)finalWidth / (float)options.outWidth, (float)finalHeight / (float)options.outHeight);
+
+        resized = Bitmap.createBitmap(resized, 0, 0, options.outWidth, options.outHeight, rotationMatrix, true);
 
         File imageDirectory = Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_PICTURES);
