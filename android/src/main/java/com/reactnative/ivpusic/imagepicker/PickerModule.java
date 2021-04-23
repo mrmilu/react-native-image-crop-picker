@@ -576,7 +576,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
 
         // if compression options are provided image will be compressed. If none options is provided,
         // then original image will be returned
-        File compressedImage = compression.compressImage(options, path, original);
+        File compressedImage = compression.compressImage(this.reactContext, options, path, original);
         String compressedImagePath = compressedImage.getPath();
         BitmapFactory.Options options = validateImage(compressedImagePath);
         long modificationDate = new File(path).lastModified();
@@ -772,7 +772,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
             if (resultUri != null) {
                 try {
                     if (width > 0 && height > 0) {
-                        resultUri = Uri.fromFile(compression.resize(resultUri.getPath(), width, height, 100));
+                        resultUri = Uri.fromFile(compression.resize(this.reactContext, resultUri.getPath(), width, height, 100));
                     }
 
                     WritableMap result = getSelection(activity, resultUri, false);
@@ -819,7 +819,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
     private File createImageFile() throws IOException {
 
         String imageFileName = "image-" + UUID.randomUUID().toString();
-        File path = Environment.getExternalStoragePublicDirectory(
+        File path = this.reactContext.getExternalFilesDir(
                 Environment.DIRECTORY_PICTURES);
 
         if (!path.exists() && !path.isDirectory()) {
@@ -838,7 +838,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
     private File createVideoFile() throws IOException {
 
         String videoFileName = "video-" + UUID.randomUUID().toString();
-        File path = Environment.getExternalStoragePublicDirectory(
+        File path = this.reactContext.getExternalFilesDir(
                 Environment.DIRECTORY_PICTURES);
 
         if (!path.exists() && !path.isDirectory()) {
